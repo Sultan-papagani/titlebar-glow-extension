@@ -4,9 +4,6 @@
   "description": "Adds a colorful glow effect to the titlebar, automatically generating unique colors based on your workspace name",
   "version": "1.0.0",
   "publisher": "sultan-papagani",
-  "author": {
-    "name": "Sultan Papagani"
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Sultan-papagani/titlebar-glow-extension.git"
