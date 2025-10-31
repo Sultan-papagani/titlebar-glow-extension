@@ -98,7 +98,12 @@ Example:
 ### `titlebarGlow.colorSeed`
 - **Type**: String
 - **Default**: `""`
-- **Description**: A random seed mixed into the folder name during color calculation. Use this to get different color variations for the same project. For example, if you don't like the current color, try setting it to "1", "2", or any other string to generate a different color.
+- **Description**: A seed value mixed into the workspace name during color calculation. **This is NOT for randomization** - it generates DETERMINISTIC colors. The same workspace + same seed will ALWAYS produce the same color. Use this to get a different (but consistent) color for your project. For example, if you don't like the default color, try setting it to "1", "2", "blue", or any other string to generate a different color.
+
+**How it works:**
+- Empty seed `""` → Default color for this workspace
+- Seed `"1"` → Different color, but always the same for this workspace
+- Seed `"2"` → Another different color, but always the same for this workspace
 
 Example:
 ```json

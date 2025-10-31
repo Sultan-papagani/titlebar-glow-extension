@@ -39,6 +39,10 @@
       {
         "command": "titlebarGlow.toggle",
         "title": "Titlebar Glow: Toggle Glow Effect"
+      },
+      {
+        "command": "titlebarGlow.forceUpdate",
+        "title": "Titlebar Glow: Force Update Color"
       }
     ],
     "configuration": {
@@ -71,7 +75,7 @@
         "titlebarGlow.colorSeed": {
           "type": "string",
           "default": "",
-          "description": "A random seed mixed into the folder name during color calculation. Use this to get different color variations for the same project."
+          "description": "A seed value for DETERMINISTIC color generation (same workspace + same seed = same color always). Change this to get a different consistent color for your project. Try '1', '2', 'blue', etc."
         }
       }
     }

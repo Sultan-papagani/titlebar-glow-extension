@@ -6,6 +6,45 @@ import { locateCSSFile, injectCSS, removeCSS, isInjected } from './cssInjector';
 let statusBarItem: vscode.StatusBarItem;
 
 /**
+ * Forces an immediate color update based on current workspace and settings
+ */
+async function forceUpdateColor() {
+    try {
+        const cssPath = locateCSSFile();
+        
+        if (!cssPath) {
+            vscode.window.showErrorMessage(
+                'Titlebar Glow: Could not locate CSS file.'
+            );
+            return;
+        }
+        
+        if (!isInjected(cssPath)) {
+            vscode.window.showInformationMessage('Titlebar Glow is not currently active. Use "Apply Glow Effect" first.');
+            return;
+        }
+        
+        const config = getConfig();
+        const workspaceName = getWorkspaceName();
+        const color = generateColor(workspaceName, config.colorSeed);
+        const colorHex = rgbToHex(color.r, color.g, color.b);
+        
+        injectCSS(cssPath, colorHex, config.glowIntensity, config.glowOffsetX, config.glowDiameter);
+        
+        vscode.window.showWarningMessage(
+            `Color updated to ${colorHex}! CLOSE and REOPEN Cursor to see changes.`,
+            'OK'
+        );
+        
+        updateStatusBar();
+    } catch (error) {
+        vscode.window.showErrorMessage(
+            `Titlebar Glow: Failed to update color. ${error}`
+        );
+    }
+}
+
+/**
  * Applies the glow effect
  */
 async function applyGlowEffect() {
@@ -126,6 +165,56 @@ async function toggleGlowEffect() {
 }
 
 /**
+ * Gets the currently injected color from the CSS file
+ */
+function getInjectedColor(cssPath: string): string | null {
+    try {
+        const fs = require('fs');
+        const cssContent = fs.readFileSync(cssPath, 'utf8');
+        
+        // Look for the color in the injected CSS (format: background: radial-gradient(circle, #RRGGBB 0%, ...)
+        const colorMatch = cssContent.match(/background:\s*radial-gradient\(circle,\s*(#[0-9a-fA-F]{6})/i);
+        if (colorMatch) {
+            // Always return uppercase for consistent comparison
+            return colorMatch[1].toUpperCase();
+        }
+    } catch (error) {
+        // Ignore errors
+    }
+    return null;
+}
+
+/**
+ * Smart status bar click handler - updates color if out of sync, otherwise toggles
+ */
+async function handleStatusBarClick() {
+    const cssPath = locateCSSFile();
+    if (!cssPath) {
+        return;
+    }
+    
+    const config = getConfig();
+    const workspaceName = getWorkspaceName();
+    const expectedColor = generateColor(workspaceName, config.colorSeed);
+    const expectedColorHex = rgbToHex(expectedColor.r, expectedColor.g, expectedColor.b);
+    
+    // Check if colors are out of sync
+    if (isInjected(cssPath) && config.enabled) {
+        const injectedColor = getInjectedColor(cssPath);
+        
+        // Compare colors (case-insensitive)
+        if (injectedColor && injectedColor.toUpperCase() !== expectedColorHex.toUpperCase()) {
+            // Colors don't match - force update instead of toggle
+            await forceUpdateColor();
+            return;
+        }
+    }
+    
+    // Otherwise, do normal toggle
+    await toggleGlowEffect();
+}
+
+/**
  * Updates the status bar item
  */
 function updateStatusBar() {
@@ -136,15 +225,28 @@ function updateStatusBar() {
     
     const config = getConfig();
     const workspaceName = getWorkspaceName();
-    const color = generateColor(workspaceName, config.colorSeed);
-    const colorHex = rgbToHex(color.r, color.g, color.b);
+    const expectedColor = generateColor(workspaceName, config.colorSeed);
+    const expectedColorHex = rgbToHex(expectedColor.r, expectedColor.g, expectedColor.b);
     
     if (isInjected(cssPath) && config.enabled) {
-        statusBarItem.text = `$(star-full) ${colorHex}`;
-        statusBarItem.tooltip = `Titlebar Glow Active\nWorkspace: ${workspaceName}\nColor: ${colorHex}`;
+        const injectedColor = getInjectedColor(cssPath);
+        
+        // Compare colors (case-insensitive)
+        if (injectedColor && injectedColor.toUpperCase() !== expectedColorHex.toUpperCase()) {
+            // Color mismatch - needs update
+            statusBarItem.text = `$(warning) ${injectedColor} → ${expectedColorHex}`;
+            statusBarItem.tooltip = `Titlebar Glow OUT OF SYNC!\nWorkspace: ${workspaceName}\nCurrent: ${injectedColor}\nExpected: ${expectedColorHex}\n\nClick to update!`;
+            statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+        } else {
+            // Color matches
+            statusBarItem.text = `$(star-full) ${expectedColorHex}`;
+            statusBarItem.tooltip = `Titlebar Glow Active\nWorkspace: ${workspaceName}\nColor: ${expectedColorHex}\nClick to toggle off`;
+            statusBarItem.backgroundColor = undefined;
+        }
     } else {
         statusBarItem.text = `$(star-empty) Glow Off`;
-        statusBarItem.tooltip = 'Titlebar Glow Inactive';
+        statusBarItem.tooltip = 'Titlebar Glow Inactive - Click to enable';
+        statusBarItem.backgroundColor = undefined;
     }
     
     statusBarItem.show();
@@ -156,10 +258,15 @@ function updateStatusBar() {
 export function activate(context: vscode.ExtensionContext) {
     console.log('Titlebar Glow extension is now active!');
     
-    // Create status bar item
+    // Create status bar item with smart click handler
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    statusBarItem.command = 'titlebarGlow.toggle';
+    statusBarItem.command = 'titlebarGlow.statusBarClick';
     context.subscriptions.push(statusBarItem);
+    
+    // Register status bar click handler
+    context.subscriptions.push(
+        vscode.commands.registerCommand('titlebarGlow.statusBarClick', handleStatusBarClick)
+    );
     
     // Register commands
     context.subscriptions.push(
@@ -174,45 +281,56 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('titlebarGlow.toggle', toggleGlowEffect)
     );
     
+    context.subscriptions.push(
+        vscode.commands.registerCommand('titlebarGlow.forceUpdate', forceUpdateColor)
+    );
+    
     // Listen for workspace folder changes
     context.subscriptions.push(
-        vscode.workspace.onDidChangeWorkspaceFolders(() => {
+        vscode.workspace.onDidChangeWorkspaceFolders(async () => {
             const config = getConfig();
-            if (config.enabled) {
-                vscode.window.showInformationMessage(
-                    'Workspace changed. Would you like to update the titlebar glow?',
-                    'Yes',
-                    'No'
-                ).then(result => {
-                    if (result === 'Yes') {
-                        applyGlowEffect();
-                    }
-                });
+            const cssPath = locateCSSFile();
+            
+            if (config.enabled && cssPath && isInjected(cssPath)) {
+                // Auto-apply new color for new workspace
+                const workspaceName = getWorkspaceName();
+                const color = generateColor(workspaceName, config.colorSeed);
+                const colorHex = rgbToHex(color.r, color.g, color.b);
+                
+                injectCSS(cssPath, colorHex, config.glowIntensity, config.glowOffsetX, config.glowDiameter);
+                
+                vscode.window.showWarningMessage(
+                    `Titlebar Glow updated for new workspace! New color: ${colorHex}. CLOSE and REOPEN Cursor to see changes.`,
+                    'OK'
+                );
+                
+                updateStatusBar();
             }
         })
     );
     
     // Listen for configuration changes
     context.subscriptions.push(
-        vscode.workspace.onDidChangeConfiguration(e => {
+        vscode.workspace.onDidChangeConfiguration(async e => {
             if (e.affectsConfiguration('titlebarGlow')) {
-                updateStatusBar();
-                
                 const config = getConfig();
                 const cssPath = locateCSSFile();
                 
                 // Auto-reapply if already injected and still enabled
                 if (cssPath && isInjected(cssPath) && config.enabled) {
-                    vscode.window.showInformationMessage(
-                        'Titlebar Glow settings changed. Would you like to reapply the effect?',
-                        'Yes',
-                        'No'
-                    ).then(result => {
-                        if (result === 'Yes') {
-                            applyGlowEffect();
-                        }
-                    });
+                    const workspaceName = getWorkspaceName();
+                    const color = generateColor(workspaceName, config.colorSeed);
+                    const colorHex = rgbToHex(color.r, color.g, color.b);
+                    
+                    injectCSS(cssPath, colorHex, config.glowIntensity, config.glowOffsetX, config.glowDiameter);
+                    
+                    vscode.window.showWarningMessage(
+                        `Titlebar Glow updated! New color: ${colorHex}. CLOSE and REOPEN Cursor to see changes.`,
+                        'OK'
+                    );
                 }
+                
+                updateStatusBar();
             }
         })
     );
