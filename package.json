@@ -1,0 +1,91 @@
+{
+  "name": "titlebar-glow",
+  "displayName": "Titlebar Glow",
+  "description": "Adds a colorful glow effect to the titlebar, automatically generating unique colors based on your workspace name",
+  "version": "1.0.0",
+  "publisher": "sultan-papagani",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Other",
+    "Themes"
+  ],
+  "keywords": [
+    "titlebar",
+    "glow",
+    "workspace",
+    "color",
+    "customization"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "titlebarGlow.apply",
+        "title": "Titlebar Glow: Apply Glow Effect"
+      },
+      {
+        "command": "titlebarGlow.remove",
+        "title": "Titlebar Glow: Remove Glow Effect"
+      },
+      {
+        "command": "titlebarGlow.toggle",
+        "title": "Titlebar Glow: Toggle Glow Effect"
+      }
+    ],
+    "configuration": {
+      "title": "Titlebar Glow",
+      "properties": {
+        "titlebarGlow.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable the titlebar glow effect"
+        },
+        "titlebarGlow.glowIntensity": {
+          "type": "number",
+          "default": 0.3,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Controls the opacity/intensity of the glow effect (0-1)"
+        },
+        "titlebarGlow.glowOffsetX": {
+          "type": "number",
+          "default": 50,
+          "description": "Horizontal offset of the glow effect from the left edge (in pixels)"
+        },
+        "titlebarGlow.glowDiameter": {
+          "type": "number",
+          "default": 200,
+          "minimum": 50,
+          "maximum": 1000,
+          "description": "Diameter of the glow effect (in pixels)"
+        },
+        "titlebarGlow.colorSeed": {
+          "type": "string",
+          "default": "",
+          "description": "A random seed mixed into the folder name during color calculation. Use this to get different color variations for the same project."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.75.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}
+
